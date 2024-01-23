@@ -1,5 +1,5 @@
 {
-    "name": "language-julia",
+    "name": "language-julia-modified",
     "displayName": "Julia",
     "description": "Julia Language Support",
     "version": "1.66.0",
@@ -37,6 +37,7 @@
         "onCommand:language-julia.stopREPL",
         "onCommand:language-julia.stopTestProcess",
         "onCommand:language-julia.restartREPL",
+        "onCommand:language-julia.executeCodeBlockbyBlock",
         "onCommand:language-julia.executeCodeBlockOrSelection",
         "onCommand:language-julia.executeFile",
         "onCommand:language-julia.executeActiveFile",
@@ -150,6 +151,10 @@
             {
                 "command": "language-julia.executeCodeBlockOrSelection",
                 "title": "Julia: Execute Code in REPL"
+            },
+            {
+                "command": "language-julia.executeCodeBlockbyBlock",
+                "title": "Julia: Execute Code Block by Block in REPL"
             },
             {
                 "command": "language-julia.executeJuliaCodeInREPL",
@@ -739,13 +744,18 @@
         "keybindings": [
             {
                 "command": "language-julia.executeCodeBlockOrSelectionAndMove",
-                "key": "Shift+Enter",
+                "key": "",
                 "when": "editorTextFocus && activeEditor != workbench.editor.notebook && editorLangId in julia.supportedLanguageIds"
             },
             {
                 "command": "language-julia.executeCodeBlockOrSelection",
-                "key": "Ctrl+Enter",
+                "key": "Shift+Enter",
                 "when": "editorTextFocus && activeEditor != workbench.editor.notebook && editorLangId in julia.supportedLanguageIds"
+            },
+            {
+                "command": "language-julia.executeCodeBlockbyBlock",
+                "key": "Ctrl+Enter",
+                "when": "editorTextFocus && activeEditor != workbench.editor.notebook && editorLangId == julia || editorLangId == juliamarkdown"
             },
             {
                 "command": "language-julia.executeCell",
