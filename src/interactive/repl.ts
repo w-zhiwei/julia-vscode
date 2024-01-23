@@ -945,6 +945,130 @@ async function evaluateBlockOrSelection(shouldMove: boolean = false) {
     }
 }
 
+async function evaluateBlockbyBlock(shouldMove: boolean = false) {
+    telemetry.traceEvent('command-executeCodeBlockOrSelection')
+
+
+    const editor = vscode.window.activeTextEditor
+    if (editor === undefined) {
+        return
+    }
+    if (vscode.workspace.getConfiguration('julia').get<boolean>('execution.saveOnEval') === true) {
+        await editor.document.save()
+    }
+    const selections = editor.selections.slice()
+
+    await startREPL(true, false)
+
+    for (const selection of selections) {
+        let range: vscode.Range = null
+        let nextBlock: vscode.Position = null
+        const startpos: vscode.Position = editor.document.validatePosition(new vscode.Position(selection.start.line, selection.start.character))
+        const module: string = await modules.getModuleForEditor(editor.document, startpos)
+
+        if (selection.isEmpty) {
+            const currentBlock = await getBlockRange(getVersionedParamsAtPosition(editor.document, startpos))
+            const blockStartPos = editor.document.validatePosition(new vscode.Position(currentBlock[0].line, currentBlock[0].character))
+            const lineEndPos = editor.document.validatePosition(new vscode.Position(currentBlock[1].line, Infinity))
+            range = new vscode.Range(blockStartPos, lineEndPos)
+            nextBlock = editor.document.validatePosition(new vscode.Position(currentBlock[2].line, currentBlock[2].character))
+
+            const text = editor.document.getText(range)
+
+            const tempDecoration = vscode.window.createTextEditorDecorationType({
+                backgroundColor: new vscode.ThemeColor('editor.hoverHighlightBackground'),
+                isWholeLine: true
+            })
+            editor.setDecorations(tempDecoration, [range])
+
+            setTimeout(() => {
+                editor.setDecorations(tempDecoration, [])
+            }, 200)
+
+            await evaluate(editor, range, text, module)
+
+        } else {
+            let currentBlock = await getBlockRange(getVersionedParamsAtPosition(editor.document, startpos))
+            let currentLine = currentBlock[0].line
+            let previousLine = -1.234
+            const lastLine = (() => {
+              if (selection.end.character == 0 && selection.end.line != selection.start.line)
+                return selection.end.line - 1
+              else
+                return selection.end.line
+            })()
+
+
+            while (currentLine <= lastLine && currentLine != previousLine) {
+                const blockStartPos = editor.document.validatePosition(new vscode.Position(currentBlock[0].line, currentBlock[0].character))
+                const lineEndPos = editor.document.validatePosition(new vscode.Position(currentBlock[1].line, Infinity))
+                range = new vscode.Range(blockStartPos, lineEndPos)
+                nextBlock = editor.document.validatePosition(new vscode.Position(currentBlock[2].line, currentBlock[2].character))
+
+                const text = editor.document.getText(range)
+
+                const tempDecoration = vscode.window.createTextEditorDecorationType({
+                    backgroundColor: new vscode.ThemeColor('editor.hoverHighlightBackground'),
+                    isWholeLine: true
+                })
+                editor.setDecorations(tempDecoration, [range])
+
+                setTimeout(() => {
+                    editor.setDecorations(tempDecoration, [])
+                }, 200)
+
+                telemetry.traceEvent('command-evaluate')
+
+                const section = vscode.workspace.getConfiguration('julia')
+                const resultType: string = section.get('execution.resultType')
+                const codeInREPL: boolean = section.get('execution.codeInREPL')
+
+                let r: results.Result = null
+                if (resultType !== 'REPL') {
+                    r = results.addResult(editor, range, ' ⟳ ', '')
+                }
+                try {
+                    const result: ReturnResult = await g_connection.sendRequest(
+                        requestTypeReplRunCode,
+                        {
+                            filename: editor.document.fileName,
+                            line: range.start.line,
+                            column: range.start.character,
+                            code: text,
+                            mod: module,
+                            showCodeInREPL: codeInREPL,
+                            showResultInREPL: resultType === 'REPL' || resultType === 'both',
+                            showErrorInREPL: resultType.indexOf('error') > -1,
+                            softscope: true
+                        }
+                    )
+
+                    if (resultType !== 'REPL') {
+                        if (r.destroyed) {
+                            r = results.addResult(editor, range, '', '')
+                        }
+                        if (result.stackframe) {
+                            results.clearStackTrace()
+                            results.setStackTrace(r, result.all, result.stackframe)
+                            r.setContent(results.resultContent(' ' + result.inline + ' ', result.all, Boolean(result.stackframe)))
+                            return
+                        }
+                        r.setContent(results.resultContent(' ' + result.inline + ' ', result.all, Boolean(result.stackframe)))
+                    }
+                } catch (err) {
+                    r.remove(true)
+                    telemetry.handleNewCrashReportFromException(err, 'Extension')
+                }
+
+                previousLine = currentLine
+                currentBlock = await getBlockRange(getVersionedParamsAtPosition(editor.document, nextBlock))
+                currentLine = currentBlock[0].line
+            }
+        }
+
+    }
+}
+
 // Returns false if the connection wasn't available
 async function evaluate(editor: vscode.TextEditor, range: vscode.Range, text: string, module: string) {
     telemetry.traceEvent('command-evaluate')
