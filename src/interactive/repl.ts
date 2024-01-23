@@ -1464,6 +1464,7 @@ export function activate(context: vscode.ExtensionContext, compiledProvider, jul
         registerCommand('language-julia.selectBlock', selectJuliaBlock),
         registerCommand('language-julia.executeCodeBlockOrSelection', evaluateBlockOrSelection),
         registerCommand('language-julia.executeCodeBlockOrSelectionAndMove', () => evaluateBlockOrSelection(true)),
+        registerCommand('language-julia.executeCodeBlockbyBlock', evaluateBlockbyBlock),
         registerCommand('language-julia.executeCell', executeCell),
         registerCommand('language-julia.executeCellAndMove', () => executeCell(true)),
         registerCommand('language-julia.moveCellUp', moveCellUp),
